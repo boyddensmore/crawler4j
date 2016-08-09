@@ -18,6 +18,8 @@
 package edu.uci.ics.crawler4j.examples.localdata;
 
 import org.apache.http.HttpStatus;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import edu.uci.ics.crawler4j.crawler.CrawlConfig;
 import edu.uci.ics.crawler4j.crawler.Page;
@@ -33,63 +35,63 @@ import edu.uci.ics.crawler4j.url.WebURL;
  * single page and extract its title and text.
  */
 public class Downloader {
+  private static final Logger logger = LoggerFactory.getLogger(Downloader.class);
 
-	private Parser parser;
-	private PageFetcher pageFetcher;
+  private final Parser parser;
+  private final PageFetcher pageFetcher;
 
-	public Downloader() {
-		CrawlConfig config = new CrawlConfig();
-		parser = new Parser(config);
-		pageFetcher = new PageFetcher(config);
-	}
+  public Downloader() {
+    CrawlConfig config = new CrawlConfig();
+    parser = new Parser(config);
+    pageFetcher = new PageFetcher(config);
+  }
 
-	private Page download(String url) {
-		WebURL curURL = new WebURL();
-		curURL.setURL(url);
-		PageFetchResult fetchResult = null;
-		try {
-			fetchResult = pageFetcher.fetchHeader(curURL);
-			if (fetchResult.getStatusCode() == HttpStatus.SC_OK) {
-				try {
-					Page page = new Page(curURL);
-					fetchResult.fetchContent(page);
-					if (parser.parse(page, curURL.getURL())) {
-						return page;
-					}
-				} catch (Exception e) {
-					e.printStackTrace();
-				}
-			}
-		} finally {
-			fetchResult.discardContentIfNotConsumed();
-		}
-		return null;
-	}
+  public static void main(String[] args) {
+    Downloader downloader = new Downloader();
+    downloader.processUrl("http://en.wikipedia.org/wiki/Main_Page/");
+    downloader.processUrl("http://www.yahoo.com/");
+  }
 
-	public void processUrl(String url) {
-		System.out.println("Processing: " + url);
-		Page page = download(url);
-		if (page != null) {
-			ParseData parseData = page.getParseData();
-			if (parseData != null) {
-				if (parseData instanceof HtmlParseData) {
-					HtmlParseData htmlParseData = (HtmlParseData) parseData;
-					System.out.println("Title: " + htmlParseData.getTitle());
-					System.out.println("Text length: " + htmlParseData.getText().length());
-					System.out.println("Html length: " + htmlParseData.getHtml().length());
-				}
-			} else {
-				System.out.println("Couldn't parse the content of the page.");
-			}
-		} else {
-			System.out.println("Couldn't fetch the content of the page.");
-		}
-		System.out.println("==============");
-	}
+  public void processUrl(String url) {
+    logger.debug("Processing: {}", url);
+    Page page = download(url);
+    if (page != null) {
+      ParseData parseData = page.getParseData();
+      if (parseData != null) {
+        if (parseData instanceof HtmlParseData) {
+          HtmlParseData htmlParseData = (HtmlParseData) parseData;
+          logger.debug("Title: {}", htmlParseData.getTitle());
+          logger.debug("Text length: {}", htmlParseData.getText().length());
+          logger.debug("Html length: {}", htmlParseData.getHtml().length());
+        }
+      } else {
+        logger.warn("Couldn't parse the content of the page.");
+      }
+    } else {
+      logger.warn("Couldn't fetch the content of the page.");
+    }
+    logger.debug("==============");
+  }
 
-	public static void main(String[] args) {
-		Downloader downloader = new Downloader();
-		downloader.processUrl("http://en.wikipedia.org/wiki/Main_Page/");
-		downloader.processUrl("http://www.yahoo.com/");
-	}
+  private Page download(String url) {
+    WebURL curURL = new WebURL();
+    curURL.setURL(url);
+    PageFetchResult fetchResult = null;
+    try {
+      fetchResult = pageFetcher.fetchPage(curURL);
+      if (fetchResult.getStatusCode() == HttpStatus.SC_OK) {
+        Page page = new Page(curURL);
+        fetchResult.fetchContent(page);
+        parser.parse(page, curURL.getURL());
+        return page;
+      }
+    } catch (Exception e) {
+      logger.error("Error occurred while fetching url: " + curURL.getURL(), e);
+    } finally {
+      if (fetchResult != null) {
+        fetchResult.discardContentIfNotConsumed();
+      }
+    }
+    return null;
+  }
 }

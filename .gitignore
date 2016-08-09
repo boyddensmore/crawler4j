@@ -1,6 +1,13 @@
-target/*
+target/
+.DS_STORE
 .idea/*
 *.iml
 .settings/*
 javadocs/*
+<<<<<<< HEAD
 /target
+=======
+.classpath
+.project
+logs/
+>>>>>>> refs/remotes/yasserg/master

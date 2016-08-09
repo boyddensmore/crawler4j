@@ -18,16 +18,19 @@
 package edu.uci.ics.crawler4j.examples.imagecrawler;
 
 import java.io.File;
+import java.io.IOException;
+import java.util.UUID;
 import java.util.regex.Pattern;
+
+import com.google.common.io.Files;
 
 import edu.uci.ics.crawler4j.crawler.Page;
 import edu.uci.ics.crawler4j.crawler.WebCrawler;
 import edu.uci.ics.crawler4j.parser.BinaryParseData;
 import edu.uci.ics.crawler4j.url.WebURL;
-import edu.uci.ics.crawler4j.util.IO;
 
 /**
- * @author Yasser Ganjisaffar <lastname at gmail dot com>
+ * @author Yasser Ganjisaffar
  */
 
 /*
@@ -38,67 +41,63 @@ import edu.uci.ics.crawler4j.util.IO;
  */
 public class ImageCrawler extends WebCrawler {
 
-	private static final Pattern filters = Pattern.compile(".*(\\.(css|js|mid|mp2|mp3|mp4|wav|avi|mov|mpeg|ram|m4v|pdf"
-			+ "|rm|smil|wmv|swf|wma|zip|rar|gz))$");
+  private static final Pattern filters = Pattern
+      .compile(".*(\\.(css|js|mid|mp2|mp3|mp4|wav|avi|mov|mpeg|ram|m4v|pdf" + "|rm|smil|wmv|swf|wma|zip|rar|gz))$");
 
-	private static final Pattern imgPatterns = Pattern.compile(".*(\\.(bmp|gif|jpe?g|png|tiff?))$");
+  private static final Pattern imgPatterns = Pattern.compile(".*(\\.(bmp|gif|jpe?g|png|tiff?))$");
 
-	private static File storageFolder;
-	private static String[] crawlDomains;
+  private static File storageFolder;
+  private static String[] crawlDomains;
 
-	public static void configure(String[] crawlDomains, String storageFolderName) {
-		ImageCrawler.crawlDomains = crawlDomains;
+  public static void configure(String[] domain, String storageFolderName) {
+    crawlDomains = domain;
 
-		storageFolder = new File(storageFolderName);
-		if (!storageFolder.exists()) {
-			storageFolder.mkdirs();
-		}
-	}
+    storageFolder = new File(storageFolderName);
+    if (!storageFolder.exists()) {
+      storageFolder.mkdirs();
+    }
+  }
 
-	@Override
-	public boolean shouldVisit(WebURL url) {
-		String href = url.getURL().toLowerCase();
-		if (filters.matcher(href).matches()) {
-			return false;
-		}
+  @Override
+  public boolean shouldVisit(Page referringPage, WebURL url) {
+    String href = url.getURL().toLowerCase();
+    if (filters.matcher(href).matches()) {
+      return false;
+    }
 
-		if (imgPatterns.matcher(href).matches()) {
-			return true;
-		}
+    if (imgPatterns.matcher(href).matches()) {
+      return true;
+    }
 
-		for (String domain : crawlDomains) {
-			if (href.startsWith(domain)) {
-				return true;
-			}
-		}
-		return false;
-	}
+    for (String domain : crawlDomains) {
+      if (href.startsWith(domain)) {
+        return true;
+      }
+    }
+    return false;
+  }
 
-	@Override
-	public void visit(Page page) {
-		String url = page.getWebURL().getURL();
+  @Override
+  public void visit(Page page) {
+    String url = page.getWebURL().getURL();
 
-		// We are only interested in processing images
-		if (!(page.getParseData() instanceof BinaryParseData)) {
-			return;
-		}
+    // We are only interested in processing images which are bigger than 10k
+    if (!imgPatterns.matcher(url).matches() ||
+        !((page.getParseData() instanceof BinaryParseData) || (page.getContentData().length < (10 * 1024)))) {
+      return;
+    }
 
-		if (!imgPatterns.matcher(url).matches()) {
-			return;
-		}
+    // get a unique name for storing this image
+    String extension = url.substring(url.lastIndexOf('.'));
+    String hashedName = UUID.randomUUID() + extension;
 
-		// Not interested in very small images
-		if (page.getContentData().length < 10 * 1024) {
-			return;
-		}
-
-		// get a unique name for storing this image
-		String extension = url.substring(url.lastIndexOf("."));
-		String hashedName = Cryptography.MD5(url) + extension;
-
-		// store image
-		IO.writeBytesToFile(page.getContentData(), storageFolder.getAbsolutePath() + "/" + hashedName);
-
-		System.out.println("Stored: " + url);
-	}
+    // store image
+    String filename = storageFolder.getAbsolutePath() + "/" + hashedName;
+    try {
+      Files.write(page.getContentData(), new File(filename));
+      logger.info("Stored: {}", url);
+    } catch (IOException iox) {
+      logger.error("Failed to write file: " + filename, iox);
+    }
+  }
 }
